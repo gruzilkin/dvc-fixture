@@ -1,0 +1,11 @@
+[project]
+name = "dvc-fixture"
+version = "0.1.0"
+description = "Test fixture for GS Domain Validation Code (DVC) via HTTP and DNS"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.135",
+    "uvicorn>=0.42",
+    "httpx>=0.28",
+    "pydantic-settings>=2.13",
+]
