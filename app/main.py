@@ -39,7 +39,21 @@ async def serve_well_known():
     return Response(content=content, media_type="text/plain")
 
 
+@app.delete("/dvc/http", status_code=204)
+async def remove_http_dvc(req: DvcRequest):
+    try:
+        http_codes.remove(req.dvc)
+    except ValueError:
+        pass
+
+
 @app.post("/dvc/dns", status_code=204)
 async def add_dns_dvc(req: DvcRequest):
     async with dns_lock:
         await cf_client.add_dvc(req.dvc)
+
+
+@app.delete("/dvc/dns", status_code=204)
+async def remove_dns_dvc(req: DvcRequest):
+    async with dns_lock:
+        await cf_client.remove_dvc(req.dvc)

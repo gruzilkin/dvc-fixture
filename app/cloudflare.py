@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from pydantic import BaseModel
@@ -34,6 +34,7 @@ class CloudflareClient:
         self._record_name = settings.dns_record_name
         self._ttl = 60
         self._max_records = settings.dns_max_records
+        self._max_age = timedelta(hours=settings.dns_max_age_hours)
         self._http = httpx.AsyncClient(
             base_url=f"{BASE_URL}/zones/{self._zone_id}",
             headers={"Authorization": f"Bearer {settings.cloudflare_api_token}"},
@@ -69,9 +70,24 @@ class CloudflareClient:
         resp = await self._http.delete(f"/dns_records/{record_id}")
         resp.raise_for_status()
 
+    async def remove_dvc(self, dvc: str) -> None:
+        records = await self.list_txt_records()
+        for record in records:
+            if record.content == dvc:
+                await self.delete_record(record.id)
+                return
+
     async def add_dvc(self, dvc: str) -> DnsRecord:
         result = await self.create_txt_record(dvc)
+        await self._cleanup()
+        return result
+
+    async def _cleanup(self) -> None:
         records = await self.list_txt_records()
+        cutoff = datetime.now(timezone.utc) - self._max_age
+        for record in records:
+            if record.created_on < cutoff:
+                await self.delete_record(record.id)
+        records = [r for r in records if r.created_on >= cutoff]
         for record in records[self._max_records:]:
             await self.delete_record(record.id)
-        return result
