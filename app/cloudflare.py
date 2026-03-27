@@ -50,7 +50,7 @@ class CloudflareClient:
         )
         resp.raise_for_status()
         parsed = DnsRecordListResponse.model_validate(resp.json())
-        return sorted(parsed.result, key=lambda r: r.created_on)
+        return sorted(parsed.result, key=lambda r: r.created_on, reverse=True)
 
     async def create_txt_record(self, content: str) -> DnsRecord:
         resp = await self._http.post(
