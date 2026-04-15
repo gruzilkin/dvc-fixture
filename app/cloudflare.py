@@ -30,13 +30,12 @@ class DnsRecordResponse(BaseModel):
 
 class CloudflareClient:
     def __init__(self, settings: Settings) -> None:
-        self._zone_id = settings.cloudflare_zone_id
-        self._record_name = settings.dns_record_name
-        self._ttl = 60
-        self._max_records = settings.dns_max_records
-        self._max_age = timedelta(hours=settings.dns_max_age_hours)
+        self._dns_record_name = settings.dns_record_name
+        self._contactemail_record_name = settings.contactemail_record_name
+        self._dns_max_records = settings.dns_max_records
+        self._dns_max_age = timedelta(hours=settings.dns_max_age_hours)
         self._http = httpx.AsyncClient(
-            base_url=f"{BASE_URL}/zones/{self._zone_id}",
+            base_url=f"{BASE_URL}/zones/{settings.cloudflare_zone_id}",
             headers={"Authorization": f"Bearer {settings.cloudflare_api_token}"},
             timeout=30,
         )
@@ -47,20 +46,20 @@ class CloudflareClient:
     async def list_txt_records(self) -> list[DnsRecord]:
         resp = await self._http.get(
             "/dns_records",
-            params={"name": self._record_name, "type": "TXT"},
+            params={"type": "TXT"},
         )
         resp.raise_for_status()
         parsed = DnsRecordListResponse.model_validate(resp.json())
         return sorted(parsed.result, key=lambda r: r.created_on, reverse=True)
 
-    async def create_txt_record(self, content: str) -> DnsRecord:
+    async def create_txt_record(self, content: str, name: str) -> DnsRecord:
         resp = await self._http.post(
             "/dns_records",
             json={
                 "type": "TXT",
-                "name": self._record_name,
+                "name": name,
                 "content": content,
-                "ttl": self._ttl,
+                "ttl": 60,
             },
         )
         resp.raise_for_status()
@@ -71,23 +70,33 @@ class CloudflareClient:
         resp.raise_for_status()
 
     async def remove_dvc(self, dvc: str) -> None:
-        records = await self.list_txt_records()
-        for record in records:
-            if record.content == dvc:
+        for record in await self.list_txt_records():
+            if record.name == self._dns_record_name and record.content == dvc:
                 await self.delete_record(record.id)
                 return
 
     async def add_dvc(self, dvc: str) -> DnsRecord:
-        result = await self.create_txt_record(dvc)
+        result = await self.create_txt_record(dvc, self._dns_record_name)
         await self._cleanup()
         return result
 
+    async def add_contactemail(self, email: str) -> DnsRecord:
+        result = await self.create_txt_record(email, self._contactemail_record_name)
+        await self._cleanup()
+        return result
+
+    async def remove_contactemail(self, email: str) -> None:
+        for record in await self.list_txt_records():
+            if record.name == self._contactemail_record_name and record.content == email:
+                await self.delete_record(record.id)
+                return
+
     async def _cleanup(self) -> None:
         records = await self.list_txt_records()
-        cutoff = datetime.now(timezone.utc) - self._max_age
+        cutoff = datetime.now(timezone.utc) - self._dns_max_age
         for record in records:
             if record.created_on < cutoff:
                 await self.delete_record(record.id)
         records = [r for r in records if r.created_on >= cutoff]
-        for record in records[self._max_records:]:
+        for record in records[self._dns_max_records:]:
             await self.delete_record(record.id)

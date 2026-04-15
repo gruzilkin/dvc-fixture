@@ -13,6 +13,10 @@ class DvcRequest(BaseModel):
     dvc: str
 
 
+class EmailRequest(BaseModel):
+    email: str
+
+
 settings = Settings()
 http_codes: collections.deque[str] = collections.deque(maxlen=settings.http_queue_size)
 cf_client = CloudflareClient(settings)
@@ -57,3 +61,15 @@ async def add_dns_dvc(req: DvcRequest):
 async def remove_dns_dvc(req: DvcRequest):
     async with dns_lock:
         await cf_client.remove_dvc(req.dvc)
+
+
+@app.post("/dvc/email", status_code=204)
+async def add_contactemail(req: EmailRequest):
+    async with dns_lock:
+        await cf_client.add_contactemail(req.email)
+
+
+@app.delete("/dvc/email", status_code=204)
+async def remove_contactemail(req: EmailRequest):
+    async with dns_lock:
+        await cf_client.remove_contactemail(req.email)
