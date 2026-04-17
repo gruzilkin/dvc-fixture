@@ -13,8 +13,17 @@ class DvcRequest(BaseModel):
     dvc: str
 
 
+class DnsDvcRequest(BaseModel):
+    dvc: str
+    fqdn: str
+
+
 class EmailRequest(BaseModel):
     email: str
+
+
+def quote(content: str) -> str:
+    return content if content.startswith('"') and content.endswith('"') else f'"{content}"'
 
 
 settings = Settings()
@@ -52,24 +61,24 @@ async def remove_http_dvc(req: DvcRequest):
 
 
 @app.post("/dvc/dns", status_code=204)
-async def add_dns_dvc(req: DvcRequest):
+async def add_dns_dvc(req: DnsDvcRequest):
     async with dns_lock:
-        await cf_client.add_dvc(req.dvc)
+        await cf_client.add_dvc(quote(req.dvc), req.fqdn)
 
 
 @app.delete("/dvc/dns", status_code=204)
-async def remove_dns_dvc(req: DvcRequest):
+async def remove_dns_dvc(req: DnsDvcRequest):
     async with dns_lock:
-        await cf_client.remove_dvc(req.dvc)
+        await cf_client.remove_dvc(quote(req.dvc), req.fqdn)
 
 
 @app.post("/dvc/email", status_code=204)
 async def add_contactemail(req: EmailRequest):
     async with dns_lock:
-        await cf_client.add_contactemail(req.email)
+        await cf_client.add_contactemail(quote(req.email))
 
 
 @app.delete("/dvc/email", status_code=204)
 async def remove_contactemail(req: EmailRequest):
     async with dns_lock:
-        await cf_client.remove_contactemail(req.email)
+        await cf_client.remove_contactemail(quote(req.email))

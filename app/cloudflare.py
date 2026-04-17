@@ -30,7 +30,6 @@ class DnsRecordResponse(BaseModel):
 
 class CloudflareClient:
     def __init__(self, settings: Settings) -> None:
-        self._dns_record_name = settings.dns_record_name
         self._contactemail_record_name = settings.contactemail_record_name
         self._dns_max_records = settings.dns_max_records
         self._dns_max_age = timedelta(hours=settings.dns_max_age_hours)
@@ -69,14 +68,14 @@ class CloudflareClient:
         resp = await self._http.delete(f"/dns_records/{record_id}")
         resp.raise_for_status()
 
-    async def remove_dvc(self, dvc: str) -> None:
+    async def remove_dvc(self, dvc: str, name: str) -> None:
         for record in await self.list_txt_records():
-            if record.name == self._dns_record_name and record.content == dvc:
+            if record.name == name and record.content == dvc:
                 await self.delete_record(record.id)
                 return
 
-    async def add_dvc(self, dvc: str) -> DnsRecord:
-        result = await self.create_txt_record(dvc, self._dns_record_name)
+    async def add_dvc(self, dvc: str, name: str) -> DnsRecord:
+        result = await self.create_txt_record(dvc, name)
         await self._cleanup()
         return result
 
